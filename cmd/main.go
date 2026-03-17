@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	_ "time/tzdata"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"worldclock/internal/config"
 	"worldclock/internal/model"
