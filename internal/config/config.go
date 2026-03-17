@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	Timezones []string `json:"timezones"`
+	Theme     string   `json:"theme"`
 }
 
 func getConfigDir() (string, error) {
@@ -37,7 +38,7 @@ func Load() (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &Config{Timezones: []string{}}, nil
+			return &Config{Timezones: []string{}, Theme: "dracula"}, nil
 		}
 		return nil, err
 	}
@@ -45,6 +46,10 @@ func Load() (*Config, error) {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, err
+	}
+
+	if cfg.Theme == "" {
+		cfg.Theme = "dracula"
 	}
 
 	return &cfg, nil

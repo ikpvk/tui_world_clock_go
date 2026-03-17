@@ -12,6 +12,35 @@ import (
 	"worldclock/internal/timezone"
 )
 
+type Theme struct {
+	Name       string
+	Foreground string
+	Background string
+	Header     string
+	SelectedBg string
+	SelectedFg string
+}
+
+var themes = []Theme{
+	{Name: "dracula", Foreground: "rgb(189,147,249)", Background: "rgb(40,42,54)", Header: "rgb(139,233,253)", SelectedBg: "rgb(97,175,239)", SelectedFg: "rgb(255,255,255)"},
+	{Name: "nord", Foreground: "rgb(136,192,208)", Background: "rgb(46,52,64)", Header: "rgb(136,192,208)", SelectedBg: "rgb(136,192,208)", SelectedFg: "rgb(46,52,64)"},
+	{Name: "one-dark", Foreground: "rgb(198,120,221)", Background: "rgb(40,44,52)", Header: "rgb(97,175,239)", SelectedBg: "rgb(97,175,239)", SelectedFg: "rgb(40,44,52)"},
+	{Name: "gruvbox", Foreground: "rgb(204,36,29)", Background: "rgb(40,40,40)", Header: "rgb(215,153,33)", SelectedBg: "rgb(215,153,33)", SelectedFg: "rgb(40,40,40)"},
+	{Name: "solarized-light", Foreground: "rgb(181,137,0)", Background: "rgb(253,246,227)", Header: "rgb(42,161,152)", SelectedBg: "rgb(42,161,152)", SelectedFg: "rgb(253,246,227)"},
+	{Name: "github-light", Foreground: "rgb(3,102,214)", Background: "rgb(255,255,255)", Header: "rgb(28,92,105)", SelectedBg: "rgb(40,167,69)", SelectedFg: "rgb(255,255,255)"},
+	{Name: "monokai-light", Foreground: "rgb(242,38,114)", Background: "rgb(250,248,245)", Header: "rgb(166,226,46)", SelectedBg: "rgb(166,226,46)", SelectedFg: "rgb(250,248,245)"},
+	{Name: "paper", Foreground: "rgb(0,0,255)", Background: "rgb(255,255,255)", Header: "rgb(0,0,128)", SelectedBg: "rgb(0,0,128)", SelectedFg: "rgb(255,255,255)"},
+}
+
+func getThemeIndex(name string) int {
+	for i, t := range themes {
+		if t.Name == name {
+			return i
+		}
+	}
+	return 0
+}
+
 type ViewMode string
 
 const (
@@ -20,12 +49,13 @@ const (
 )
 
 type Model struct {
-	timezones []string
-	selected  int
-	view      ViewMode
-	input     textinput.Model
-	ticker    *time.Ticker
-	done      bool
+	timezones  []string
+	selected   int
+	view       ViewMode
+	input      textinput.Model
+	ticker     *time.Ticker
+	done       bool
+	themeIndex int
 }
 
 func New() *Model {
@@ -34,16 +64,25 @@ func New() *Model {
 	ti.Focus()
 
 	return &Model{
-		timezones: []string{},
-		selected:  0,
-		view:      ListView,
-		input:     ti,
-		ticker:    time.NewTicker(time.Second),
+		timezones:  []string{},
+		selected:   0,
+		view:       ListView,
+		input:      ti,
+		ticker:     time.NewTicker(time.Second),
+		themeIndex: 0,
 	}
 }
 
 func (m *Model) SetTimezones(tz []string) {
 	m.timezones = tz
+}
+
+func (m *Model) SetTheme(themeName string) {
+	m.themeIndex = getThemeIndex(themeName)
+}
+
+func (m *Model) GetThemeName() string {
+	return themes[m.themeIndex].Name
 }
 
 type TickMsg time.Time
@@ -110,6 +149,14 @@ func (m *Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.input.Focus()
 		return m, nil
+	case "t":
+		m.themeIndex = (m.themeIndex + 1) % len(themes)
+		m.saveConfig()
+		return m, nil
+	case "T":
+		m.themeIndex = (m.themeIndex - 1 + len(themes)) % len(themes)
+		m.saveConfig()
+		return m, nil
 	case "esc":
 		if m.view == AddView {
 			m.view = ListView
@@ -138,8 +185,7 @@ func (m *Model) handleAddConfirm() (tea.Model, tea.Cmd) {
 		tz := filtered[m.selected]
 		if !contains(m.timezones, tz) {
 			m.timezones = append(m.timezones, tz)
-			cfg := &config.Config{Timezones: m.timezones}
-			config.Save(cfg)
+			m.saveConfig()
 		}
 	}
 	m.view = ListView
@@ -154,10 +200,17 @@ func (m *Model) handleDelete() (tea.Model, tea.Cmd) {
 		if m.selected >= len(m.timezones) && len(m.timezones) > 0 {
 			m.selected = len(m.timezones) - 1
 		}
-		cfg := &config.Config{Timezones: m.timezones}
-		config.Save(cfg)
+		m.saveConfig()
 	}
 	return m, nil
+}
+
+func (m *Model) saveConfig() {
+	cfg := &config.Config{
+		Timezones: m.timezones,
+		Theme:     themes[m.themeIndex].Name,
+	}
+	config.Save(cfg)
 }
 
 func (m *Model) View() string {
@@ -173,7 +226,9 @@ func (m *Model) View() string {
 		content = m.renderListView()
 	}
 
-	return content
+	theme := themes[m.themeIndex]
+	bgStyle := lipgloss.NewStyle().Background(lipgloss.Color(theme.Background))
+	return bgStyle.Render(content)
 }
 
 const (
@@ -185,8 +240,10 @@ const (
 func (m *Model) renderListView() string {
 	var lines []string
 
+	theme := themes[m.themeIndex]
+
 	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("86")).
+		Foreground(lipgloss.Color(theme.Header)).
 		Bold(true)
 
 	lines = append(lines, headerStyle.Render("World Clock"))
@@ -220,8 +277,8 @@ func (m *Model) renderListView() string {
 
 			if i == m.selected {
 				selectedStyle := lipgloss.NewStyle().
-					Foreground(lipgloss.Color("15")).
-					Background(lipgloss.Color("57"))
+					Foreground(lipgloss.Color(theme.SelectedFg)).
+					Background(lipgloss.Color(theme.SelectedBg))
 				lines = append(lines, selectedStyle.Render(row))
 			} else {
 				lines = append(lines, row)
@@ -230,7 +287,7 @@ func (m *Model) renderListView() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, "↑↓ Navigate | a: Add | d: Delete | q: Quit")
+	lines = append(lines, "Navigate: j/k or up/down | a: Add | d: Delete | t/T: Theme | q: Quit")
 
 	return lipgloss.NewStyle().Render("\n" + joinLines(lines))
 }
@@ -247,8 +304,10 @@ func splitDisplayName(displayName string) (string, string) {
 func (m *Model) renderAddView() string {
 	var lines []string
 
+	theme := themes[m.themeIndex]
+
 	headerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("86")).
+		Foreground(lipgloss.Color(theme.Header)).
 		Bold(true)
 
 	lines = append(lines, headerStyle.Render("Add Timezone"))
@@ -263,8 +322,8 @@ func (m *Model) renderAddView() string {
 			displayName := timezone.GetDisplayName(tz)
 			if i == m.selected {
 				selectedStyle := lipgloss.NewStyle().
-					Foreground(lipgloss.Color("15")).
-					Background(lipgloss.Color("57"))
+					Foreground(lipgloss.Color(theme.SelectedFg)).
+					Background(lipgloss.Color(theme.SelectedBg))
 				lines = append(lines, selectedStyle.Render("> "+displayName))
 			} else {
 				lines = append(lines, "  "+displayName)
@@ -275,7 +334,7 @@ func (m *Model) renderAddView() string {
 	lines = append(lines, "")
 	lines = append(lines, m.input.View())
 	lines = append(lines, "")
-	lines = append(lines, "↑↓ Navigate | Enter: Select | Esc: Cancel")
+	lines = append(lines, "Navigate: j/k or up/down | Enter: Select | Esc: Cancel")
 
 	return lipgloss.NewStyle().Render("\n" + joinLines(lines))
 }

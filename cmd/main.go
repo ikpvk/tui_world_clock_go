@@ -20,6 +20,7 @@ func main() {
 
 	m := model.New()
 	m.SetTimezones(cfg.Timezones)
+	m.SetTheme(cfg.Theme)
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if err := p.Start(); err != nil {
