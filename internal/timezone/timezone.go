@@ -2,6 +2,7 @@ package timezone
 
 import (
 	"fmt"
+	"os"
 	"time"
 )
 
@@ -104,7 +105,9 @@ func GetDisplayName(tz string) string {
 func GetTime(tz string) (time.Time, error) {
 	location, err := time.LoadLocation(tz)
 	if err != nil {
-		fmt.Printf("DEBUG: LoadLocation error for %s: %v\n", tz, err)
+		f, _ := os.OpenFile("debug.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f.WriteString(fmt.Sprintf("DEBUG: LoadLocation error for %s: %v\n", tz, err))
+		f.Close()
 		return time.Time{}, err
 	}
 	return time.Now().In(location), nil
